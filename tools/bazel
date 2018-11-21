@@ -1,0 +1,7 @@
+#!/bin/bash -e
+TOOLS="$(dirname "$0")"
+WORKSPACE="$TOOLS/.."
+
+mkdir -p "$WORKSPACE"/.bazel_cache
+
+exec "$BAZEL_REAL" $BAZEL_OPTS "$@"
