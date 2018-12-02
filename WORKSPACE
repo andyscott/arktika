@@ -16,7 +16,7 @@ http_archive(
 
 git_repository(
     name = "rules_scala_annex",
-    commit = "a1c9032fe7280025b71f13e10d56a9a86b5b453d",
+    commit = "7b6cad2d685df569ab0fa2f880f75c24540aeaca",
     remote = "git://github.com/andyscott/rules_scala_annex",
 )
 
@@ -34,7 +34,7 @@ scala_repository(
 
 git_repository(
     name = "io_higherkindness_singularity",
-    commit = "0ddc53be490bfd068162bcf29a15d5c5183af247",
+    commit = "768e251b117178e27d4546b754cead5736c32513",
     remote = "git://github.com/andyscott/singularity",
 )
 
