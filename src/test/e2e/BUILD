@@ -4,13 +4,15 @@ load(
     "scala_test",
 )
 
+"""
 scala_library(
     name = "test1",
     srcs = [
          "test1.scala",
     ],
     plugins = [
-        "//:scalac-plugin",
+        "//:scalac-plugin",        
     ],    
     visibility = ["//visibility:public"],
 )
+"""

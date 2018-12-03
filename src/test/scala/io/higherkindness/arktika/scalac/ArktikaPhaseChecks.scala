@@ -12,6 +12,7 @@ import scala.tools.nsc.reporters.ConsoleReporter
 
 import java.lang.ClassLoader
 import java.net.URLClassLoader
+import scala.reflect.internal.util.BatchSourceFile
 
 import io.higherkindness.arktika.osiris._
 
@@ -24,48 +25,89 @@ class ArktikaPhaseChecks extends Properties("ArktikaPhase") {
   import TestGlobal.global._
 
   def analyze(tree: Tree): List[Dep[_]] = {
-    ask { () =>
-      try {
-        val termTree =
-          if (tree.isTerm) tree
-          else q"{ $tree }"
-        typer.context.initRootContext()
-        toolbelt
-          .analyze(typer.typed(termTree))
-          .map(_.map(_.fullName))
-      } catch {
-        case t: Throwable =>
-          t.printStackTrace()
-          throw t
-      }
-    }
+    val termTree =
+      if (tree.isTerm) tree
+      else q"{ $tree }"
+    typer.context.initRootContext()
+    toolbelt
+      .analyze(ask(() => typer.typed(termTree)))
+      .map(_.map(_.fullName))
   }
 
-  property("Dep.Extends") = {
+  def analyze(blobs: List[String]): List[Dep[_]] = {
+    askReset()
+    blobs
+      .zipWithIndex
+      .map { case (blob, i) => new BatchSourceFile(s"<blob-$i>", blob) }
+      .flatMap { source =>
+        val response = new Response[Tree]
+        askLoadedTyped(source, false, response)
+        val tree = response.get.fold(identity, throw _)
+        toolbelt
+          .analyze(tree)
+          .map(_.map(_.fullName))
+      }
+  }
 
-    val pairs: List[(Tree, List[Dep[String]])] = List(
-      q"class Foo" -> List(
-        Dep.Extends("Foo", "scala.AnyRef")
-      ),
-      q"class Foo; class Bar extends Foo" -> List(
-        Dep.Extends("Bar", "Foo"),
-        Dep.Extends("Foo", "scala.AnyRef")
-      ),
-      q"""
+  val quotedPairs: List[(Tree, List[Dep[String]])] = List(
+    q"class Foo" -> List(
+      Dep.select("Foo.<init>", "java.lang.Object.<init>"),
+      Dep.extend("Foo", "scala.AnyRef")
+    ),
+    q"class Foo; class Bar extends Foo" -> List(
+      Dep.select("Bar.<init>", "Foo.<init>"),
+      Dep.extend("Bar", "Foo"),
+      Dep.select("Foo.<init>", "java.lang.Object.<init>"),
+      Dep.extend("Foo", "scala.AnyRef")
+    ),
+    q"""
         trait Foo
         class Bar
         class Baz extends Bar with Foo
       """ -> List(
-        Dep.Extends("Baz", "Bar"),
-        Dep.Extends("Baz", "Foo"),
-        Dep.Extends("Bar", "scala.AnyRef"),
-        Dep.Extends("Foo", "scala.AnyRef"),
+      Dep.select("Baz.<init>", "Bar.<init>"),
+        Dep.extend("Baz", "Bar"),
+        Dep.extend("Baz", "Foo"),
+        Dep.select("Bar.<init>", "java.lang.Object.<init>"),
+        Dep.extend("Bar", "scala.AnyRef"),
+        Dep.extend("Foo", "scala.AnyRef"),
       )
-    )
+  )
 
-    pairs.foldLeft(Prop.proved)((acc, pair) =>
-      (analyze(pair._1) ?= pair._2) && acc
-    )
+  quotedPairs.foreach { case (input, expected) =>
+    property("quoted: " + showRaw(input)) =
+      analyze(input) ?= expected
+  }
+
+  val parsedPairs: List[(List[String], List[Dep[String]])] = List(
+    List(
+      "trait Foo",
+      "class Bar extends Foo",
+    ) -> List(
+      Dep.extend("Foo", "scala.AnyRef"),
+      Dep.select("Bar.<init>", "java.lang.Object.<init>"),
+      Dep.extend("Bar", "scala.AnyRef"),
+      Dep.extend("Bar", "Foo"),
+    ),
+
+    List(
+      "object Foo { val foo: Int = 1 }",
+      "class Bar { println(Foo.foo) }",
+    ) -> List(
+      Dep.select("Foo.foo", "Foo.foo"),
+      Dep.select("Foo.<init>", "java.lang.Object.<init>"),
+      Dep.extend("Foo", "scala.AnyRef"),
+      Dep.select("Bar", "Foo.foo"),
+      Dep.select("Bar", "scala.Predef"),
+      Dep.select("Bar", "scala.Predef.println"),
+      Dep.select("Bar.<init>", "java.lang.Object.<init>"),
+      Dep.extend("Bar","scala.AnyRef"),
+    ),
+  )
+
+  parsedPairs.foreach { case (input, expected) =>
+    property("parsed: " + input.mkString("\\n")) =
+      analyze(input) ?= expected
   }
 
 }

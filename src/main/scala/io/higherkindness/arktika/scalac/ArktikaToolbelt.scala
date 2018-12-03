@@ -5,17 +5,21 @@ import scala.tools.nsc.Global
 
 import osiris._
 
-sealed trait Dep[A] {
-  def widen: Dep[A] = this
-}
-object Dep {
-  final case class Extends[A](x: A, y: A) extends Dep[A]
+final case class Dep[A](x: A, rel: Dep.Rel, y: A)
 
+object Dep {
+  sealed trait Rel
+  object Rel {
+    case object Extend extends Rel
+    case object Select extends Rel
+  }
+
+  def extend[A](x: A, y:A): Dep[A] = Dep(x, Rel.Extend, y)
+  def select[A](x: A, y:A): Dep[A] = Dep(x, Rel.Select, y)
 
   implicit val depFunctor: Functor[Dep] = new Functor[Dep] {
-    def map[A, B](fa: Dep[A])(f: A => B): Dep[B] = fa match {
-      case Extends(x, y) => Extends(f(x), f(y))
-    }
+    def map[A, B](fa: Dep[A])(f: A => B): Dep[B] =
+      Dep(f(fa.x), fa.rel, f(fa.y))
   }
 }
 
@@ -34,14 +38,18 @@ trait ArktikaToolbelt[G <: Global] {
     var deps: List[Dep[Symbol]] = Nil
 
     override def traverse(tree: Tree): Unit = tree match {
-      case Template(parents, self, body) =>
+      case template: Template =>
 
-        deps = parents
+        deps = template.parents
           .map(_.tpe.typeSymbolDirect)
-          .map(Dep.Extends(currentOwner, _).widen) ::: deps
+          .map(Dep.extend(currentOwner, _)) ::: deps
 
+        traverseTrees(template.body)
 
-        traverseTrees(body)
+      case select: Select =>
+        deps = Dep.select(currentOwner, select.symbol) :: deps
+        traverse(select.qualifier)
+
       case _ =>
         super.traverse(tree)
     }

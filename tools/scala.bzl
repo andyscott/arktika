@@ -1,5 +1,6 @@
 load(
     "@rules_scala_annex//rules:scala.bzl",
+    _scala_binary = "scala_binary",
     _scala_library = "scala_library",
     _scala_test = "scala_test",
 )
@@ -51,6 +52,10 @@ _scalacopts = [
     "-Ywarn-unused:privates",
     "-Ywarn-value-discard",
 ]
+
+def scala_binary(**kwargs):
+    kwargs["scalacopts"] = _scalacopts
+    _scala_binary(**kwargs)
 
 def scala_library(**kwargs):
     kwargs["scalacopts"] = _scalacopts
