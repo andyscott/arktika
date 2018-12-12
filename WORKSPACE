@@ -1,5 +1,7 @@
 workspace(name = "io_higherkindness_arktika")
 
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
 http_archive(
     name = "bazel_skylib",
     sha256 = "c0289fef5237c31e8462042b4cc3bdf831a3d3d135bb4a0d493a5072acecb074",
@@ -16,7 +18,7 @@ http_archive(
 
 git_repository(
     name = "rules_scala_annex",
-    commit = "7b6cad2d685df569ab0fa2f880f75c24540aeaca",
+    commit = "604e2a9cafcd790740505826f5c0f21c2295b08e",
     remote = "git://github.com/andyscott/rules_scala_annex",
 )
 
@@ -31,6 +33,12 @@ scala_repository(
     ("org.scala-lang", "2.12.7"),
     "@compiler_bridge_2_12//:src",
 )
+
+load("@rules_scala_annex//rules/scalafmt:workspace.bzl", "scalafmt_default_config", "scalafmt_repositories")
+
+scalafmt_repositories()
+
+scalafmt_default_config()
 
 git_repository(
     name = "io_higherkindness_singularity",
